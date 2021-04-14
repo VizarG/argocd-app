@@ -1,0 +1,247 @@
+apiVersion: v1
+kind: Template
+metadata:
+  name: ${APP_NAME}-template
+  annotations:
+    description: "${APP_NAME}"
+    tags: "${APP_NAME}"
+objects:
+
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      openshift.io/generated-by: OpenShiftNewApp
+    labels:
+      app: ${APP_NAME}
+    name: ${APP_NAME}
+  spec:
+    ports:
+      - name: 80-tcp
+        port: 80
+        protocol: TCP
+        targetPort: 80
+    selector:
+      app: ${APP_NAME}
+      deploymentconfig: ${APP_NAME}
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      template.openshift.io/expose-uri: postgres://{.spec.clusterIP}:{.spec.ports[?(.name=="postgresql")].port}
+    name: ${APP_NAME}-psql
+  spec:
+    ports:
+    - name: ${APP_NAME}-psql
+      nodePort: 0
+      port: 5432
+      protocol: TCP
+      targetPort: 5432
+    selector:
+      name: ${APP_NAME}-psql
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+
+- apiVersion: v1
+  kind: Route
+  metadata:
+    annotations:
+      openshift.io/host.generated: 'true'
+    labels:
+      app: ${APP_NAME}
+    name: ${APP_NAME}
+  spec:
+    host: ${APP_NAME}-${PROJECT_NAME}.${PROJECT_PATH}
+    port:
+      targetPort: 80-tcp
+    to:
+      kind: Service
+      name: ${APP_NAME}
+      weight: 100
+    tls:
+      termination: edge
+      insecureEdgeTerminationPolicy: Redirect
+    wildcardPolicy: None
+
+- apiVersion: apps.openshift.io/v1
+  kind: DeploymentConfig
+  metadata:
+    annotations:
+      openshift.io/generated-by: OpenShiftNewApp
+    labels:
+      app: ${APP_NAME}
+    name: ${APP_NAME}
+  spec:
+    replicas: 1
+    revisionHistoryLimit: 10
+    selector:
+      app: ${APP_NAME}
+      deploymentconfig: ${APP_NAME}
+    strategy:
+      activeDeadlineSeconds: 21600
+      rollingParams:
+        intervalSeconds: 1
+        maxSurge: 25%
+        maxUnavailable: 25%
+        timeoutSeconds: 600
+        updatePeriodSeconds: 1
+      type: Recreate
+    template:
+      metadata:
+        annotations:
+          openshift.io/generated-by: OpenShiftNewApp
+        creationTimestamp: null
+        labels:
+          app: ${APP_NAME}
+          deploymentconfig: ${APP_NAME}
+      spec:
+        containers:
+          - image: paas-images.epam.com/proxy/library/dpage/pgadmin4:5.1
+            envFrom:
+              - secretRef:
+                  name: env-${APP_NAME}
+            imagePullPolicy: Always
+            name: ${APP_NAME}
+            ports:
+              - containerPort: 80
+                protocol: TCP
+            resources:
+              limits:
+                cpu: 100m
+                memory: 250Mi
+              requests:
+                cpu: 50m
+                memory: 100Mi
+            terminationMessagePath: /dev/termination-log
+            terminationMessagePolicy: File
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+    test: false
+    triggers:
+      - type: ConfigChange
+
+- apiVersion: v1
+  kind: DeploymentConfig
+  metadata:
+    annotations:
+      template.alpha.openshift.io/wait-for-ready: "true"
+    name: ${APP_NAME}-psql
+  spec:
+    replicas: 1
+    selector:
+      name: ${APP_NAME}-psql
+    strategy:
+      type: Recreate
+    template:
+      metadata:
+        labels:
+          name: ${APP_NAME}-psql
+      spec:
+        containers:
+        - capabilities: {}
+          envFrom:
+            - secretRef:
+                name: env-${APP_NAME}
+          image: docker-registry.default.svc:5000/${PROJECT_NAME}/${APP_NAME}-psql:${IMAGE_TAG}
+          imagePullPolicy: Always
+          livenessProbe:
+            exec:
+              command:
+              - /bin/sh
+              - -i
+              - -c
+              - pg_isready -h 127.0.0.1 -p 5432
+            initialDelaySeconds: 30
+            timeoutSeconds: 1
+          name: postgresql
+          ports:
+          - containerPort: 5432
+            protocol: TCP
+          resources:
+            limits:
+              cpu: 100m
+              memory: 200Mi
+            requests:
+              cpu: 50m
+              memory: 100Mi
+          readinessProbe:
+            exec:
+              command:
+              - /bin/sh
+              - -i
+              - -c
+              - psql -h 127.0.0.1 -U $POSTGRESQL_USER -q -d $POSTGRESQL_DATABASE -c
+                'SELECT 1'
+            initialDelaySeconds: 5
+            timeoutSeconds: 1
+          securityContext:
+            capabilities: {}
+            privileged: false
+          terminationMessagePath: /dev/termination-log
+          volumeMounts:
+          - mountPath: /var/lib/pgsql/data
+            name: ${APP_NAME}-psql
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        volumes:
+        - name: ${APP_NAME}-psql
+          persistentVolumeClaim:
+            claimName: ${APP_NAME}-psql
+    triggers:
+    - type: ConfigChange
+  status: {}
+
+parameters:
+- description: Application name
+  displayName: Application Name
+  name: APP_NAME
+  required: true
+  value: feature
+- description: Application tag
+  displayName: Application tag
+  name: IMAGE_TAG
+  required: true
+  value: feature
+- description: Project name
+  displayName: Project Name
+  name: PROJECT_NAME
+  required: true
+  value: epm-test
+- description: Project name
+  displayName: Project Name
+  name: PROJECT_PATH
+  required: true
+  value: paas.epam.com
+- description: Storage class for PersistentVolumeClaim
+  displayName: Storage class for PersistentVolumeClaim
+  name: STORAGE_CLASS
+  required: true
+  value: ceph-epam-by-default
+
+- description: Username for PostgreSQL user that will be used for accessing the database.
+  displayName: PostgreSQL Connection Username
+  from: user[A-Z0-9]{3}
+  generate: expression
+  name: POSTGRESQL_USER
+  required: true
+- description: Password for the PostgreSQL connection user.
+  displayName: PostgreSQL Connection Password
+  from: '[a-zA-Z0-9]{16}'
+  generate: expression
+  name: POSTGRESQL_PASSWORD
+  required: true
+- description: Name of the PostgreSQL database accessed.
+  displayName: PostgreSQL Database Name
+  name: POSTGRESQL_DATABASE
+  required: true
+  value: sampledb
