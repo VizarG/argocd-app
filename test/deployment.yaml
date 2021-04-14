@@ -15,7 +15,7 @@ spec:
         app: guestbook-ui
     spec:
       containers:
-      - image: paas-images.epam.com/proxy/minio/minio:RELEASE.2021-02-24T18-44-45Z
+      - image: paas-images.epam.com/proxy/openshift/hello-openshift
         name: guestbook-ui
         ports:
-        - containerPort: 9000
+        - containerPort: 6061
