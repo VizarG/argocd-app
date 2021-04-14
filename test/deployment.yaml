@@ -15,7 +15,7 @@ spec:
         app: guestbook-ui
     spec:
       containers:
-      - image: paas-images.epam.com/proxy/dpage/pgadmin4:5.1
+      - image: paas-images.epam.com/proxy/minio/minio:RELEASE.2021-02-24T18-44-45Z
         name: guestbook-ui
         ports:
-        - containerPort: 80
+        - containerPort: 9000
