@@ -19,3 +19,64 @@ spec:
         name: guestbook-ui
         ports:
         - containerPort: 6061
+
+
+
+      initContainers:
+      - name: download-custom-tools
+        image: quay.io/openshift/origin-cli:latest
+        command: [sh, -c]
+        args:
+        - cp /usr/bin/oc /custom-tools/oc
+        volumeMounts:
+        - mountPath: /custom-tools
+          name: custom-tools
+      containers:
+        - resources: {}
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8084
+              scheme: HTTP
+
+
+
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: >
+      {"apiVersion":"v1","kind":"ConfigMap","metadata":{"annotations":{},"labels":{"app.kubernetes.io/name":"argocd-cm","app.kubernetes.io/part-of":"argocd"},"name":"argocd-cm","namespace":"argocd"}}
+  selfLink: /api/v1/namespaces/argocd/configmaps/argocd-cm
+  resourceVersion: '161797'
+  name: argocd-cm
+  uid: a2395e1d-da3c-4a34-8cb3-1a8cdf703aa5
+  creationTimestamp: '2021-04-14T12:51:13Z'
+  managedFields:
+    - manager: kubectl-client-side-apply
+      operation: Update
+      apiVersion: v1
+      time: '2021-04-14T12:51:13Z'
+      fieldsType: FieldsV1
+      fieldsV1:
+        'f:metadata':
+          'f:annotations':
+            .: {}
+            'f:kubectl.kubernetes.io/last-applied-configuration': {}
+          'f:labels':
+            .: {}
+            'f:app.kubernetes.io/name': {}
+            'f:app.kubernetes.io/part-of': {}
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: argocd-cm
+    app.kubernetes.io/part-of: argocd
+data:
+  configManagementPlugins: |
+    - name: oc-template
+      init:
+        command: ["bash","-c"]
+        args: ["if [ ! -z ${MERGE_TYPE} ]; then MERGE_TYPE=\"--type=${MERGE_TYPE}\"; else MERGE_TYPE=\"\"; fi && if [ -f ${TEMPLATE_NAME} ] || [[ ${TEMPLATE_NAME} =~ ^https? ]] ; then TEMPLATE_NAME=\"-f ${TEMPLATE_NAME} --local\"; fi && oc process ${TEMPLATE_NAME} --param-file=${PARAM_FILE} -o=json -n ${ARGOCD_APP_NAMESPACE} | oc patch -f - -p '{\"metadata\":{\"annotations\":{\"argocd.argoproj.io/sync-options\":\"Validate=false\"}}}' --dry-run=true -o=json ${MERGE_TYPE} -n ${ARGOCD_APP_NAMESPACE} | oc create -f - --dry-run=true -o=yaml -n ${ARGOCD_APP_NAMESPACE} > app.yaml"]
+      generate:
+        command: ["sh", "-c" ]
+        args: ["oc create -f app.yaml --dry-run=true -o=yaml"]
