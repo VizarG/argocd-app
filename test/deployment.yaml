@@ -21,159 +21,159 @@ spec:
         - containerPort: 6061
 
 
-
-      initContainers:
-      - name: download-custom-tools
-        image: quay.io/openshift/origin-cli:latest
-        command: [sh, -c]
-        args:
-        - cp /usr/bin/oc /custom-tools/oc
-        volumeMounts:
-        - mountPath: /custom-tools
-          name: custom-tools
-      containers:
-        - resources: {}
-          readinessProbe:
-            httpGet:
-              path: /healthz
-              port: 8084
-              scheme: HTTP
-
-
-
-kind: ConfigMap
-apiVersion: v1
-metadata:
-  annotations:
-    kubectl.kubernetes.io/last-applied-configuration: >
-      {"apiVersion":"v1","kind":"ConfigMap","metadata":{"annotations":{},"labels":{"app.kubernetes.io/name":"argocd-cm","app.kubernetes.io/part-of":"argocd"},"name":"argocd-cm","namespace":"argocd"}}
-  selfLink: /api/v1/namespaces/argocd/configmaps/argocd-cm
-  resourceVersion: '161797'
-  name: argocd-cm
-  uid: a2395e1d-da3c-4a34-8cb3-1a8cdf703aa5
-  creationTimestamp: '2021-04-14T12:51:13Z'
-  managedFields:
-    - manager: kubectl-client-side-apply
-      operation: Update
-      apiVersion: v1
-      time: '2021-04-14T12:51:13Z'
-      fieldsType: FieldsV1
-      fieldsV1:
-        'f:metadata':
-          'f:annotations':
-            .: {}
-            'f:kubectl.kubernetes.io/last-applied-configuration': {}
-          'f:labels':
-            .: {}
-            'f:app.kubernetes.io/name': {}
-            'f:app.kubernetes.io/part-of': {}
-  namespace: argocd
-  labels:
-    app.kubernetes.io/name: argocd-cm
-    app.kubernetes.io/part-of: argocd
-data:
-  configManagementPlugins: |
-    - name: oc-template
-      init:
-        command: ["bash","-c"]
-        args: ["if [ ! -z ${MERGE_TYPE} ]; then MERGE_TYPE=\"--type=${MERGE_TYPE}\"; else MERGE_TYPE=\"\"; fi && if [ -f ${TEMPLATE_NAME} ] || [[ ${TEMPLATE_NAME} =~ ^https? ]] ; then TEMPLATE_NAME=\"-f ${TEMPLATE_NAME} --local\"; fi && oc process ${TEMPLATE_NAME} --param-file=${PARAM_FILE} -o=json -n ${ARGOCD_APP_NAMESPACE} | oc patch -f - -p '{\"metadata\":{\"annotations\":{\"argocd.argoproj.io/sync-options\":\"Validate=false\"}}}' --dry-run=client -o=json ${MERGE_TYPE} -n ${ARGOCD_APP_NAMESPACE} | oc create -f - --dry-run=client -o=yaml -n ${ARGOCD_APP_NAMESPACE} > app.yaml"]
-      generate:
-        command: ["sh", "-c" ]
-        args: ["oc create -f app.yaml --dry-run=client -o=yaml"]
-
-
-data:
-  configManagementPlugins: |
-    - name: oc-template
-      generate:
-        command: ["sh", "-c" ]
-        args: ["oc create -f app.yaml --dry-run=client -o=yaml"]
-
-data:
-  configManagementPlugins: |
-    - name: oc-template
-      init:
-        command: ["bash","-c"]
-        args: ["if [ ! -z ${MERGE_TYPE} ]; then MERGE_TYPE=\"--type=${MERGE_TYPE}\"; else MERGE_TYPE=\"\"; fi && if [ -f ${TEMPLATE_NAME} ] || [[ ${TEMPLATE_NAME} =~ ^https? ]] ; then TEMPLATE_NAME=\"-f ${TEMPLATE_NAME} --local\"; fi && oc process ${TEMPLATE_NAME} --param-file=${PARAM_FILE} -o=json -n ${ARGOCD_APP_NAMESPACE} | oc patch -f - -p '{\"metadata\":{\"annotations\":{\"argocd.argoproj.io/sync-options\":\"Validate=false\"}}}' --dry-run=true -o=json ${MERGE_TYPE} -n ${ARGOCD_APP_NAMESPACE} | oc create -f - --dry-run=true -o=yaml -n ${ARGOCD_APP_NAMESPACE} > app.yaml"]
-      generate:
-        command: ["sh", "-c" ]
-        args: ["oc create -f app.yaml --dry-run=true -o=yaml"]
-
-
-apiVersion: argoproj.io/v1alpha1
-kind: Application
-metadata:
-  name: my-awesome-remote-nexus
-  namespace: argocd
-spec:
-  project: default
-  source:
-    repoURL: https://github.com/tylerauerbeck/my-example-argo-deployment.git
-    targetRevision: master
-    path: nexus
-
-    # plugin specific config
-    plugin:
-      name: oc-template
-      # environment variables passed to the plugin
-      env:
-        - name: TEMPLATE_NAME
-          value: https://raw.githubusercontent.com/redhat-cop/openshift-templates/master/nexus/nexus-deployment-template.yml
-        - name: PARAM_FILE
-          value: app.params
-
-  # Destination cluster and namespace to deploy the application
-  destination:
-    server: https://kubernetes.default.svc
-    namespace: remote-nexus
-
-apiVersion: argoproj.io/v1alpha1
-kind: Application
-metadata:
-  name: my-awesome-remote-nexus
-  namespace: argocd
-spec:
-  destination:
-    name: ''
-    namespace: argocd
-    server: 'https://api.dev1.paas4.epm-paas.projects.epam.com:6443'
-  source:
-    path: oc
-    repoURL: 'https://github.com/VizarG/argocd-app'
-    targetRevision: main
-    plugin:
-      name: oc-template
-  project: default
-
-
-Unable to create application: application spec is invalid: InvalidSpecError: Unable to generate manifests in nexus: rpc error: code = Unknown desc = `bash -c if [ ! -z ${MERGE_TYPE} ]; then MERGE_TYPE="--type=${MERGE_TYPE}"; else MERGE_TYPE=""; fi && if [ -f ${TEMPLATE_NAME} ] || [[ ${TEMPLATE_NAME} =~ ^https? ]] ; then TEMPLATE_NAME="-f ${TEMPLATE_NAME} --local"; fi && oc process ${TEMPLATE_NAME} --param-file=${PARAM_FILE} -o=json -n ${ARGOCD_APP_NAMESPACE} | oc patch -f - -p '{"metadata":{"annotations":{"argocd.argoproj.io/sync-options":"Validate=false"}}}' --dry-run=true -o=json ${MERGE_TYPE} -n ${ARGOCD_APP_NAMESPACE} | oc create -f - --dry-run=true -o=yaml -n ${ARGOCD_APP_NAMESPACE} > app.yaml` failed exit status 1: W0415 12:05:52.370667 503 helpers.go:567] --dry-run=true is deprecated (boolean value) and can be replaced with --dry-run=client. error: Missing or incomplete configuration info. Please point to an existing, complete config file: 1. Via the command-line flag --kubeconfig 2. Via the KUBECONFIG environment variable 3. In your home directory as ~/.kube/config To view or setup config directly use the 'config' command. W0415 12:05:52.377194 504 helpers.go:567] --dry-run=true is deprecated (boolean value) and can be replaced with --dry-run=client. error: Missing or incomplete configuration info. Please point to an existing, complete config file: 1. Via the command-line flag --kubeconfig 2. Via the KUBECONFIG environment variable 3. In your home directory as ~/.kube/config To view or setup config directly use the 'config' command.
-
-
-Unable to create application: application spec is invalid: InvalidSpecError: Unable to generate manifests in nexus: rpc error: code = Unknown desc = `bash -c if [ ! -z ${MERGE_TYPE} ]; then MERGE_TYPE="--type=${MERGE_TYPE}"; else MERGE_TYPE=""; fi && if [ -f ${TEMPLATE_NAME} ] || [[ ${TEMPLATE_NAME} =~ ^https? ]] ; then TEMPLATE_NAME="-f ${TEMPLATE_NAME} --local"; fi && oc process ${TEMPLATE_NAME} --param-file=${PARAM_FILE} -o=json -n ${ARGOCD_APP_NAMESPACE} | oc patch -f - -p '{"metadata":{"annotations":{"argocd.argoproj.io/sync-options":"Validate=false"}}}' --dry-run=client -o=json ${MERGE_TYPE} -n ${ARGOCD_APP_NAMESPACE} | oc create -f - --dry-run=client -o=yaml -n ${ARGOCD_APP_NAMESPACE} > app.yaml` failed exit status 1: error: Missing or incomplete configuration info. Please point to an existing, complete config file: 1. Via the command-line flag --kubeconfig 2. Via the KUBECONFIG environment variable 3. In your home directory as ~/.kube/config To view or setup config directly use the 'config' command. error: Missing or incomplete configuration info. Please point to an existing, complete config file: 1. Via the command-line flag --kubeconfig 2. Via the KUBECONFIG environment variable 3. In your home directory as ~/.kube/config To view or setup config directly use the 'config' command.
-
-apiVersion: argoproj.io/v1alpha1
-kind: Application
-metadata:
-  name: my-awesome-remote-nexus
-  namespace: argocd
-spec:
-  project: default
-  source:
-    repoURL: https://github.com/tylerauerbeck/my-example-argo-deployment.git
-    targetRevision: master
-    path: nexus
-
-    # plugin specific config
-    plugin:
-      name: oc-template
-      # environment variables passed to the plugin
-      env:
-        - name: TEMPLATE_NAME
-          value: https://raw.githubusercontent.com/redhat-cop/openshift-templates/master/nexus/nexus-deployment-template.yml
-        - name: PARAM_FILE
-          value: app.params
-
-  # Destination cluster and namespace to deploy the application
-  destination:
-    server: https://kubernetes.default.svc
-    namespace: remote-nexus
+# 
+#       initContainers:
+#       - name: download-custom-tools
+#         image: quay.io/openshift/origin-cli:latest
+#         command: [sh, -c]
+#         args:
+#         - cp /usr/bin/oc /custom-tools/oc
+#         volumeMounts:
+#         - mountPath: /custom-tools
+#           name: custom-tools
+#       containers:
+#         - resources: {}
+#           readinessProbe:
+#             httpGet:
+#               path: /healthz
+#               port: 8084
+#               scheme: HTTP
+#
+#
+#
+# kind: ConfigMap
+# apiVersion: v1
+# metadata:
+#   annotations:
+#     kubectl.kubernetes.io/last-applied-configuration: >
+#       {"apiVersion":"v1","kind":"ConfigMap","metadata":{"annotations":{},"labels":{"app.kubernetes.io/name":"argocd-cm","app.kubernetes.io/part-of":"argocd"},"name":"argocd-cm","namespace":"argocd"}}
+#   selfLink: /api/v1/namespaces/argocd/configmaps/argocd-cm
+#   resourceVersion: '161797'
+#   name: argocd-cm
+#   uid: a2395e1d-da3c-4a34-8cb3-1a8cdf703aa5
+#   creationTimestamp: '2021-04-14T12:51:13Z'
+#   managedFields:
+#     - manager: kubectl-client-side-apply
+#       operation: Update
+#       apiVersion: v1
+#       time: '2021-04-14T12:51:13Z'
+#       fieldsType: FieldsV1
+#       fieldsV1:
+#         'f:metadata':
+#           'f:annotations':
+#             .: {}
+#             'f:kubectl.kubernetes.io/last-applied-configuration': {}
+#           'f:labels':
+#             .: {}
+#             'f:app.kubernetes.io/name': {}
+#             'f:app.kubernetes.io/part-of': {}
+#   namespace: argocd
+#   labels:
+#     app.kubernetes.io/name: argocd-cm
+#     app.kubernetes.io/part-of: argocd
+# data:
+#   configManagementPlugins: |
+#     - name: oc-template
+#       init:
+#         command: ["bash","-c"]
+#         args: ["if [ ! -z ${MERGE_TYPE} ]; then MERGE_TYPE=\"--type=${MERGE_TYPE}\"; else MERGE_TYPE=\"\"; fi && if [ -f ${TEMPLATE_NAME} ] || [[ ${TEMPLATE_NAME} =~ ^https? ]] ; then TEMPLATE_NAME=\"-f ${TEMPLATE_NAME} --local\"; fi && oc process ${TEMPLATE_NAME} --param-file=${PARAM_FILE} -o=json -n ${ARGOCD_APP_NAMESPACE} | oc patch -f - -p '{\"metadata\":{\"annotations\":{\"argocd.argoproj.io/sync-options\":\"Validate=false\"}}}' --dry-run=client -o=json ${MERGE_TYPE} -n ${ARGOCD_APP_NAMESPACE} | oc create -f - --dry-run=client -o=yaml -n ${ARGOCD_APP_NAMESPACE} > app.yaml"]
+#       generate:
+#         command: ["sh", "-c" ]
+#         args: ["oc create -f app.yaml --dry-run=client -o=yaml"]
+#
+#
+# data:
+#   configManagementPlugins: |
+#     - name: oc-template
+#       generate:
+#         command: ["sh", "-c" ]
+#         args: ["oc create -f app.yaml --dry-run=client -o=yaml"]
+#
+# data:
+#   configManagementPlugins: |
+#     - name: oc-template
+#       init:
+#         command: ["bash","-c"]
+#         args: ["if [ ! -z ${MERGE_TYPE} ]; then MERGE_TYPE=\"--type=${MERGE_TYPE}\"; else MERGE_TYPE=\"\"; fi && if [ -f ${TEMPLATE_NAME} ] || [[ ${TEMPLATE_NAME} =~ ^https? ]] ; then TEMPLATE_NAME=\"-f ${TEMPLATE_NAME} --local\"; fi && oc process ${TEMPLATE_NAME} --param-file=${PARAM_FILE} -o=json -n ${ARGOCD_APP_NAMESPACE} | oc patch -f - -p '{\"metadata\":{\"annotations\":{\"argocd.argoproj.io/sync-options\":\"Validate=false\"}}}' --dry-run=true -o=json ${MERGE_TYPE} -n ${ARGOCD_APP_NAMESPACE} | oc create -f - --dry-run=true -o=yaml -n ${ARGOCD_APP_NAMESPACE} > app.yaml"]
+#       generate:
+#         command: ["sh", "-c" ]
+#         args: ["oc create -f app.yaml --dry-run=true -o=yaml"]
+#
+#
+# apiVersion: argoproj.io/v1alpha1
+# kind: Application
+# metadata:
+#   name: my-awesome-remote-nexus
+#   namespace: argocd
+# spec:
+#   project: default
+#   source:
+#     repoURL: https://github.com/tylerauerbeck/my-example-argo-deployment.git
+#     targetRevision: master
+#     path: nexus
+#
+#     # plugin specific config
+#     plugin:
+#       name: oc-template
+#       # environment variables passed to the plugin
+#       env:
+#         - name: TEMPLATE_NAME
+#           value: https://raw.githubusercontent.com/redhat-cop/openshift-templates/master/nexus/nexus-deployment-template.yml
+#         - name: PARAM_FILE
+#           value: app.params
+#
+#   # Destination cluster and namespace to deploy the application
+#   destination:
+#     server: https://kubernetes.default.svc
+#     namespace: remote-nexus
+#
+# apiVersion: argoproj.io/v1alpha1
+# kind: Application
+# metadata:
+#   name: my-awesome-remote-nexus
+#   namespace: argocd
+# spec:
+#   destination:
+#     name: ''
+#     namespace: argocd
+#     server: 'https://api.dev1.paas4.epm-paas.projects.epam.com:6443'
+#   source:
+#     path: oc
+#     repoURL: 'https://github.com/VizarG/argocd-app'
+#     targetRevision: main
+#     plugin:
+#       name: oc-template
+#   project: default
+#
+#
+# Unable to create application: application spec is invalid: InvalidSpecError: Unable to generate manifests in nexus: rpc error: code = Unknown desc = `bash -c if [ ! -z ${MERGE_TYPE} ]; then MERGE_TYPE="--type=${MERGE_TYPE}"; else MERGE_TYPE=""; fi && if [ -f ${TEMPLATE_NAME} ] || [[ ${TEMPLATE_NAME} =~ ^https? ]] ; then TEMPLATE_NAME="-f ${TEMPLATE_NAME} --local"; fi && oc process ${TEMPLATE_NAME} --param-file=${PARAM_FILE} -o=json -n ${ARGOCD_APP_NAMESPACE} | oc patch -f - -p '{"metadata":{"annotations":{"argocd.argoproj.io/sync-options":"Validate=false"}}}' --dry-run=true -o=json ${MERGE_TYPE} -n ${ARGOCD_APP_NAMESPACE} | oc create -f - --dry-run=true -o=yaml -n ${ARGOCD_APP_NAMESPACE} > app.yaml` failed exit status 1: W0415 12:05:52.370667 503 helpers.go:567] --dry-run=true is deprecated (boolean value) and can be replaced with --dry-run=client. error: Missing or incomplete configuration info. Please point to an existing, complete config file: 1. Via the command-line flag --kubeconfig 2. Via the KUBECONFIG environment variable 3. In your home directory as ~/.kube/config To view or setup config directly use the 'config' command. W0415 12:05:52.377194 504 helpers.go:567] --dry-run=true is deprecated (boolean value) and can be replaced with --dry-run=client. error: Missing or incomplete configuration info. Please point to an existing, complete config file: 1. Via the command-line flag --kubeconfig 2. Via the KUBECONFIG environment variable 3. In your home directory as ~/.kube/config To view or setup config directly use the 'config' command.
+#
+#
+# Unable to create application: application spec is invalid: InvalidSpecError: Unable to generate manifests in nexus: rpc error: code = Unknown desc = `bash -c if [ ! -z ${MERGE_TYPE} ]; then MERGE_TYPE="--type=${MERGE_TYPE}"; else MERGE_TYPE=""; fi && if [ -f ${TEMPLATE_NAME} ] || [[ ${TEMPLATE_NAME} =~ ^https? ]] ; then TEMPLATE_NAME="-f ${TEMPLATE_NAME} --local"; fi && oc process ${TEMPLATE_NAME} --param-file=${PARAM_FILE} -o=json -n ${ARGOCD_APP_NAMESPACE} | oc patch -f - -p '{"metadata":{"annotations":{"argocd.argoproj.io/sync-options":"Validate=false"}}}' --dry-run=client -o=json ${MERGE_TYPE} -n ${ARGOCD_APP_NAMESPACE} | oc create -f - --dry-run=client -o=yaml -n ${ARGOCD_APP_NAMESPACE} > app.yaml` failed exit status 1: error: Missing or incomplete configuration info. Please point to an existing, complete config file: 1. Via the command-line flag --kubeconfig 2. Via the KUBECONFIG environment variable 3. In your home directory as ~/.kube/config To view or setup config directly use the 'config' command. error: Missing or incomplete configuration info. Please point to an existing, complete config file: 1. Via the command-line flag --kubeconfig 2. Via the KUBECONFIG environment variable 3. In your home directory as ~/.kube/config To view or setup config directly use the 'config' command.
+#
+# apiVersion: argoproj.io/v1alpha1
+# kind: Application
+# metadata:
+#   name: my-awesome-remote-nexus
+#   namespace: argocd
+# spec:
+#   project: default
+#   source:
+#     repoURL: https://github.com/tylerauerbeck/my-example-argo-deployment.git
+#     targetRevision: master
+#     path: nexus
+#
+#     # plugin specific config
+#     plugin:
+#       name: oc-template
+#       # environment variables passed to the plugin
+#       env:
+#         - name: TEMPLATE_NAME
+#           value: https://raw.githubusercontent.com/redhat-cop/openshift-templates/master/nexus/nexus-deployment-template.yml
+#         - name: PARAM_FILE
+#           value: app.params
+#
+#   # Destination cluster and namespace to deploy the application
+#   destination:
+#     server: https://kubernetes.default.svc
+#     namespace: remote-nexus
